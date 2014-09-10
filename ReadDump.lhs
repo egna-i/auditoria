@@ -1,7 +1,7 @@
 >module Main where
 >import Data.List(intersperse)
 
->data Money = Money {money :: Double} deriving (Eq)
+>data Money = Money {money :: Double} --deriving (Eq)
 
 >instance Show Money where
 >  show (Money m) = show m
@@ -12,46 +12,46 @@
 >	audit_partial :: AuditPartialSection, 
 >	audit_cash :: AuditCashSection,
 >	audit_card :: AuditCardSection
->	} deriving (Eq, Show)
+>	} --deriving (Eq, Show)
 
 >data AuditGlobalSection = AuditGlobalSection { 
 >       audit_global_impressao_numero :: Integer, 
 >       audit_global_valor_vendas :: Money,
 >       audit_global_numero_vendas :: Integer, 
 >       audit_global_dinheiro_tubos :: Money
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 >
 >data AuditInstallSection = AuditInstallSection {
 >       audit_install_impressao_numero :: Integer,
 >       audit_install_vendas :: Money,
 >       audit_install_numero_vendas :: Integer
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 >data AuditPartialSection = AuditPartialSection {
 >       audit_partial_desde_impressao_numero :: Integer,
 >       audit_partial_dinheiro_cofre :: Money
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 >data AuditCashSection = AuditCashSection {
 >       audit_cash_items :: [AuditItem]
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 >data AuditCardSection = AuditCardSection {
 >       audit_card_items :: [AuditItem]
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 >data AuditItem = AuditItem {
 >       audit_item_machine :: Integer,
 >       audit_item_value :: Integer,
 >       audit_item_price :: Money,
 >       audit_item_value_price :: Money
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 
 >data Row = Row {
 >       row_columns :: [String],
 >       row_line :: [String]
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 
 >data Table = Table {
 >       table_header :: [String],
 >       table_lines :: [[String]]
->      } deriving (Eq, Show)
+>      } --deriving (Eq, Show)
 
 >showTable p (Table h rs) = (concat $ intersperse (cellSeparator p) $ map show h) ++ (lineSeparator p)
 >                        ++ (concat $ intersperse (lineSeparator p) $ map (\r -> concat $ intersperse (cellSeparator p) r) rs)
@@ -104,7 +104,7 @@
 >                         ys = audit_card_items $ audit_card a
 >                     in [(x, y) | x <- xs, y <- ys, audit_item_machine x == audit_item_machine y]
 
->table_audit a = Row (table_audit_headers 6) 
+>table_audit p a = Row (table_audit_headers (read (getValue p "input.machines" "6") :: Integer))
 >                      ([ show $ audit_global_impressao_numero $ audit_global a
 >                      , show $ audit_global_valor_vendas $ audit_global a
 >                      , show $ audit_global_numero_vendas $ audit_global a
@@ -116,13 +116,13 @@
 >                                         show $ audit_item_value y, 
 >                                         show $ audit_item_price y, 
 >                                         show $ audit_item_value_price y]) $ 
->                       filter (\(x, _) -> audit_item_machine x < 7) $ table_audit_item a))
+>                       filter (\(x, _) -> audit_item_machine x <= (read (getValue p "input.machines" "6") :: Integer)) $ table_audit_item a))
 >
 
 >getTableFromRows [] = Table [] []
 >getTableFromRows r = Table (row_columns $ head r) (map row_line r)
 
->maudits p s = map table_audit $
+>maudits p s = map (table_audit p) $
 >              filter ((>0) . audit_global_impressao_numero . audit_global) $
 >              map create_audit $
 >              filter (isAuditHeader p) $ 
@@ -140,5 +140,3 @@
 >          output <- return $ showTable props $ getTableFromRows $ maudits props input
 >          writeFile (getValue props "output.filename" "DUMP.csv") output
 >          return ()
-
-
