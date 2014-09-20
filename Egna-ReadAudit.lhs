@@ -141,7 +141,7 @@
 >                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
 
 >main :: IO ()
->main = do propertiesPath <- getPropertiesPath "ReadDump.prop"
+>main = do propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
 >          propsRaw <- readFile propertiesPath
 >          props <- return $ getProperties propsRaw
 >          input <- readFile $ getValue props "input.filename" "DUMP.log"
