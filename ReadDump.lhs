@@ -1,5 +1,7 @@
 >module Main where
 >import Data.List(intersperse)
+>import System.Directory(doesFileExist, getHomeDirectory)
+>import System.FilePath.Windows(combine)
 
 >data Money = Money {money :: Double} --deriving (Eq)
 
@@ -133,8 +135,14 @@
 >getProperties = map (\x -> (read x) :: Property) . lines
 >getValue p k v = maybe v id (lookup k p)
 
+>getPropertiesPath filename = do existFilename <- doesFileExist filename
+>                                userDirectory <- getHomeDirectory
+>                                existFilenameOnUser <- doesFileExist $ combine userDirectory filename
+>                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
+
 >main :: IO ()
->main = do propsRaw <- readFile "ReadDump.prop"
+>main = do propertiesPath <- getPropertiesPath "ReadDump.prop"
+>          propsRaw <- readFile propertiesPath
 >          props <- return $ getProperties propsRaw
 >          input <- readFile $ getValue props "input.filename" "DUMP.log"
 >          output <- return $ showTable props $ getTableFromRows $ maudits props input
