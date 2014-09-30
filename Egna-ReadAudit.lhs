@@ -2,12 +2,13 @@
 >import Data.List(intersperse, elemIndex)
 >import System.Directory(doesFileExist, getHomeDirectory)
 >import System.FilePath.Windows(combine)
->import System.Time
+>import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), toClockTime,addToClockTime,toUTCTime)
+
+>version = "Egna-ReadAudit " ++ "version 1.0.3.1"
 
 >data Money = Money {money :: Double} --deriving (Eq)
-
->instance Show Money where
->  show (Money m) = show m
+>instance Show Money where 
+>   show (Money m) = show m
 
 >data Audit = Audit { 
 >	audit_global :: AuditGlobalSection, 
@@ -16,7 +17,6 @@
 >	audit_cash :: AuditCashSection,
 >	audit_card :: AuditCardSection
 >	} --deriving (Eq, Show)
-
 >data AuditGlobalSection = AuditGlobalSection { 
 >       audit_global_impressao_numero :: Integer, 
 >       audit_global_valor_vendas :: Money,
@@ -25,7 +25,6 @@
 >       audit_global_interrupcao :: Integer,
 >       audit_global_data :: Int
 >      } --deriving (Eq, Show)
->
 >data AuditInstallSection = AuditInstallSection {
 >       audit_install_impressao_numero :: Integer,
 >       audit_install_vendas :: Money,
@@ -52,16 +51,36 @@
 >       row_columns :: [String],
 >       row_line :: [String]
 >      } --deriving (Eq, Show)
-
 >data Table = Table {
 >       table_header :: [String],
 >       table_lines :: [[String]]
 >      } --deriving (Eq, Show)
 
+>type Property = (String, String)
+
+>get_month_number January   = 01
+>get_month_number February  = 02
+>get_month_number March     = 03
+>get_month_number April     = 04
+>get_month_number May       = 05
+>get_month_number June      = 06
+>get_month_number July      = 07
+>get_month_number August    = 08
+>get_month_number September = 09
+>get_month_number October   = 10
+>get_month_number November  = 11
+>get_month_number December  = 12
+
+>get_number = read . last . words
+>get_money = Money . read . last . words
+>get_string = last . words
+>get_data =  read . (\(fst, _) -> fst) . (\w -> splitAt (maybe 0 id (elemIndex '-' w)) w) . last . words
+
 >showTable p (Table h rs) = (concat $ intersperse (cellSeparator p) $ map show h) ++ (lineSeparator p)
 >                        ++ (concat $ intersperse (lineSeparator p) $ map (\r -> concat $ intersperse (cellSeparator p) r) rs)
 
->type Property = (String, String)
+>getProperties = map (\x -> (read x) :: Property) . lines
+>getValue p k v = maybe v id (lookup k p)
 
 >cellSeparator p = getValue p "output.table.cell.separator" "; "
 >lineSeparator p = getValue p "output.table.line.separator" "\n"
@@ -69,22 +88,17 @@
 >audit_global_header p = getValue p "input.section.header" "     MEI - CF7000     "
 >isAuditSection s = (take 24 $ repeat '=') == (reverse $ take 24 s)
 >isAuditSubSection s = (take 24 $ repeat '-') == (reverse $ take 24 s)
+>isAuditHeader p xss = audit_global_header p == head (head xss)
 >isAuditTrash '\160' = True
 >isAuditTrash '\NUL' = True
 >isAuditTrash '\9632' = True
 >isAuditTrash _ = False
->isAuditHeader p xss = audit_global_header p == head (head xss)
 
 >audits   :: (String -> Bool) -> [String] -> [[String]]
 >audits f s =  case dropWhile f s of
 >                [] -> []
 >                s' -> w : audits f s''
 >                      where (w, s'') = break f s'
-
->get_number = read . last . words
->get_money = Money . read . last . words
->get_string = last . words
->get_data =  read . (\(fst, _) -> fst) . (\w -> splitAt (maybe 0 id (elemIndex '-' w)) w) . last . words
 
 >create_audit_cash_item = (\(a:b:c:d:_) -> AuditItem (read a) (read b) (Money $ read c) (Money $ read d)) . words
 >create_audit_global (audit_header:_:_:_:_:a:b:c:d:e:f:_) =  
@@ -132,26 +146,7 @@
 >getTableFromRows [] = Table [] []
 >getTableFromRows r = Table (row_columns $ head r) (map row_line r)
 
->maudits p s = map (table_audit p) $
->              filter ((>0) . audit_global_impressao_numero . audit_global) $
->              map create_audit $
->              filter (isAuditHeader p) $ 
->              map (audits isAuditSubSection) $ 
->              (audits isAuditSection) $ 
->              lines (filter (not . isAuditTrash) s)
-
->get_month_number January   = 01
->get_month_number February  = 02
->get_month_number March     = 03
->get_month_number April     = 04
->get_month_number May       = 05
->get_month_number June      = 06
->get_month_number July      = 07
->get_month_number August    = 08
->get_month_number September = 09
->get_month_number October   = 10
->get_month_number November  = 11
->get_month_number December  = 12
+>auditsNotRegistered l = [n | n <- take (maximum l) [1..], n `notElem` l]
 
 >get_tempo_ligacao props day = let y = read $ getValue props "date.initial.year" "2014"
 >                                  m = read $ getValue props "date.initial.month" "July"
@@ -160,15 +155,10 @@
 >                                  res = addToClockTime (TimeDiff 0 0 day 0 0 0 0) ct 
 >                              in (\x -> (show $ ctYear x) ++ "-" ++ (show $ get_month_number $ ctMonth x) ++ "-" ++ (show $ ctDay x)) $ toUTCTime res
 
->getProperties = map (\x -> (read x) :: Property) . lines
->getValue p k v = maybe v id (lookup k p)
-
 >getPropertiesPath filename = do existFilename <- doesFileExist filename
 >                                userDirectory <- getHomeDirectory
 >                                existFilenameOnUser <- doesFileExist $ combine userDirectory filename
 >                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
-
->version = "Egna-ReadAudit " ++ "version 1.0.3.0"
 
 >main :: IO ()
 >main = do putStrLn version
@@ -177,7 +167,15 @@
 >          props <- return $ getProperties propsRaw
 >          putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log")
 >          input <- readFile $ getValue props "input.filename" "DUMP.log"
->          output <- return $ showTable props $ getTableFromRows $ maudits props input
+>          output <- return $ showTable props 
+>                           $ getTableFromRows 
+>                           $ map (table_audit props) 
+>                           $ filter ((>0) . audit_global_impressao_numero . audit_global) 
+>                           $ map create_audit 
+>                           $ filter (isAuditHeader props) 
+>                           $ map (audits isAuditSubSection) 
+>                           $ (audits isAuditSection) 
+>                           $ lines (filter (not . isAuditTrash) input)
 >          putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv")
 >          writeFile (getValue props "output.filename" "DUMP.csv") output
 >          return ()
