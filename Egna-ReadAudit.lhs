@@ -2,12 +2,14 @@
 >import Data.List (intersperse, elemIndex,sort,groupBy,sortBy,(\\))
 >import System.Directory (doesFileExist, getHomeDirectory)
 >import System.FilePath.Windows (combine)
->import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), toClockTime,addToClockTime,toUTCTime)
+>import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), 
+>                    toClockTime,addToClockTime,toUTCTime,getClockTime, diffClockTimes)
 
->version = "Egna-ReadAudit " ++ "version 1.0.6.0"
+>version = "Egna-ReadAudit " ++ "version 1.0.7.0"
 
 >type Number = Int
->data Money = Money {money :: Double} deriving (Eq)
+>data Money = Money {money :: Float} deriving (Eq, Ord)
+
 >instance Show Money where 
 >   show (Money m) = show m
 
@@ -186,22 +188,22 @@
 
 >foldrAuditFunc a b = Audit (AuditGlobalSection (max (audit_global_impressao_numero $ audit_global a) 
 >                                                    (audit_global_impressao_numero $ audit_global b))
->                                               ((audit_global_valor_vendas $ audit_global a) + 
->                                                (audit_global_valor_vendas $ audit_global b))
+>                                               (max (audit_global_valor_vendas $ audit_global a) 
+>                                                    (audit_global_valor_vendas $ audit_global b))
 >                                               (max (audit_global_numero_vendas $ audit_global a) 
 >                                                    (audit_global_numero_vendas $ audit_global b))
->                                               ((audit_global_dinheiro_tubos $ audit_global a) + 
->                                                (audit_global_dinheiro_tubos $ audit_global b))
+>                                               (max (audit_global_dinheiro_tubos $ audit_global a) 
+>                                                    (audit_global_dinheiro_tubos $ audit_global b))
 >                                               ((audit_global_interrupcao $ audit_global a) + 
 >                                                (audit_global_interrupcao $ audit_global b))
 >                                               (max (audit_global_data $ audit_global a) 
 >                                                    (audit_global_data $ audit_global b)) )
 >                           (AuditInstallSection (max (audit_install_impressao_numero $ audit_install a) 
 >                                                     (audit_install_impressao_numero $ audit_install b))
->                                                ((audit_install_vendas $ audit_install a) + 
->                                                 (audit_install_vendas $ audit_install b))
->                                                ((audit_install_numero_vendas $ audit_install a) + 
->                                                 (audit_install_numero_vendas $ audit_install b))) 
+>                                                (max (audit_install_vendas $ audit_install a) 
+>                                                     (audit_install_vendas $ audit_install b))
+>                                                (max (audit_install_numero_vendas $ audit_install a) 
+>                                                     (audit_install_numero_vendas $ audit_install b))) 
 >                           (AuditPartialSection (max (audit_partial_desde_impressao_numero $ audit_partial a) 
 >                                                     (audit_partial_desde_impressao_numero $ audit_partial b))
 >                                                ((audit_partial_dinheiro_cofre $ audit_partial a) + 
@@ -251,13 +253,14 @@
 >                                  res = addToClockTime (TimeDiff 0 0 day 0 0 0 0) ct 
 >                              in (\x -> (show $ ctYear x) ++ "-" ++ (show $ get_month_number $ ctMonth x) ++ "-" ++ (show $ ctDay x)) $ toUTCTime res
 
->getPropertiesPath filename = do existFilename <- doesFileExist filename
->                                userDirectory <- getHomeDirectory
+>getPropertiesPath :: FilePath -> IO FilePath
+>getPropertiesPath filename = do userDirectory <- getHomeDirectory
 >                                existFilenameOnUser <- doesFileExist $ combine userDirectory filename
 >                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
 
 >main :: IO ()
 >main = do putStrLn version
+>          beforeWorkFlowTime <- getClockTime
 >          propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
 >          putStrLn ("Read " ++ propertiesPath)
 >          propsRaw <- readFile propertiesPath
@@ -267,4 +270,6 @@
 >          output <- return $ workflow props input
 >          putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv")
 >          writeFile (getValue props "output.filename" "DUMP.csv") output
+>          afterWorkFlowTime <- getClockTime
+>          putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
 >          return ()
