@@ -13,6 +13,8 @@
 ("output.table.cell.separator",";")
 ("workflow.filterduplicates","True")
 ("workflow.createmissing","True")
+("workflow.creategroup","False")
+("workflow.filtergroup","True")
 ("date.initial.year","2014")
 ("date.initial.month","July")
 ("date.initial.day","02")

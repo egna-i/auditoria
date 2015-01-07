@@ -1,15 +1,22 @@
 >module Main where
->import Data.List (intersperse, elemIndex,sort,groupBy,(\\))
+>import Data.List (intersperse, elemIndex,sort,groupBy,sortBy,(\\))
 >import System.Directory (doesFileExist, getHomeDirectory)
 >import System.FilePath.Windows (combine)
 >import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), toClockTime,addToClockTime,toUTCTime)
 
->version = "Egna-ReadAudit " ++ "version 1.0.4.0"
+>version = "Egna-ReadAudit " ++ "version 1.0.6.0"
 
 >type Number = Int
 >data Money = Money {money :: Double} deriving (Eq)
 >instance Show Money where 
 >   show (Money m) = show m
+
+>instance Num Money where
+>  (Money a) + (Money b) = Money (a + b)
+>  (Money a) * (Money b) = Money (a * b)
+>  abs = Money . abs . money
+>  signum = Money . signum . money
+>  fromInteger = Money . fromInteger
 
 >data Audit = Audit { 
 >	audit_global :: AuditGlobalSection, 
@@ -140,13 +147,16 @@
 >                      , show $ get_tempo_ligacao p (audit_global_data $ audit_global a)
 >                      , show $ audit_partial_desde_impressao_numero $ audit_partial a
 >                      ] ++ (concat $ 
->                       map (\(x, y) -> [ show $ audit_item_value x, 
+>                       map (\(x, y) -> [ show $ audit_item_value x,
 >                                         show $ audit_item_price x, 
 >                                         show $ audit_item_value_price x,
 >                                         show $ audit_item_value y, 
 >                                         show $ audit_item_price y, 
->                                         show $ audit_item_value_price y]) $ 
->                       filter (\(x, _) -> audit_item_machine x <= (read (getValue p "input.machines" "6") :: Number)) $ table_audit_item a))
+>                                         show $ audit_item_value_price y
+>                                       ]) $ 
+>                       filter (\(x, _) -> audit_item_machine x <= (read (getValue p "input.machines" "6") :: Number)) $ 
+>                       filter (\(x, y) -> audit_item_machine x > 0 && audit_item_machine y > 0) $ 
+>                       table_audit_item a))
 >
 
 >getTableFromRows [] = Table [] []
@@ -154,30 +164,89 @@
 
 >createMissingAudit l = let x1 = map (audit_global_impressao_numero . audit_global) l
 >                       in l ++ [ create_audit x3 [] | x3 <- [1 .. (maximum x1)] \\ x1]
+>createMissingItem n = AuditItem n 0 (Money 0) (Money 0)
 
 >filterDuplicates l =  map (last . sort)
 >                    $ groupBy (\a b -> (audit_partial_desde_impressao_numero $ audit_partial a) > 0 &&
 >                                       (audit_partial_desde_impressao_numero $ audit_partial a) == 
 >                                       (audit_partial_desde_impressao_numero $ audit_partial b)) l
 
->workflow props input = showTable props 												-- criar CSV output
->                      $ getTableFromRows 												-- criar Table
->                      $ map (table_audit props) 										-- criar Rows
->                      $ conditional props "workflow.sort" sort                  		-- ordenar as Auditorias pelo numero
->                      $ filter ((>0) . audit_global_impressao_numero . audit_global) 	-- filtrar auditorias com o numero 0
->                      $ conditional props "workflow.filterduplicates" filterDuplicates	-- eliminar audits 
->                      $ conditional props "workflow.createmissing" createMissingAudit	-- criar Audit em falta
->                      $ map (create_audit 0)											-- criar Audit
->                      $ filter (isAuditHeader props) 									-- filtar as secções inválidas
->                      $ map (audits isAuditSubSection) 								-- criação de subsecções
->                      $ audits isAuditSection 											-- criação de secções (auditorias)
->                      $ lines 															-- cria listas com as linhas
->                      $ filter (not . isAuditTrash) input 								-- remove os carateres com lixo
+>isSameItem a b = audit_item_machine a == audit_item_machine b --  audit_item_price a == audit_item_price b
+>isSameItemOrd a b | audit_item_machine a == audit_item_machine b = EQ
+>                  | audit_item_machine a > audit_item_machine b = GT
+>                  | audit_item_machine a < audit_item_machine b = LT
+>                  | otherwise = EQ
+
+>sumAuditItems [] = createMissingItem 0
+>sumAuditItems ((AuditItem a2 b2 c2 d2):[]) = (AuditItem a2 b2 c2 d2)
+>sumAuditItems ((AuditItem a2 b2 c2 d2):x2) = let x1 = sumAuditItems x2
+>                                             in AuditItem a2 (audit_item_value x1 + b2) c2 (audit_item_value_price x1 + d2)
+
+>foldrAuditItem (AuditItem a1 b1 c1 d1) (AuditItem a2 b2 c2 d2) = AuditItem (a1) (b1 + b2) (c1) (d1 + d2)
+
+>foldrAuditFunc a b = Audit (AuditGlobalSection (max (audit_global_impressao_numero $ audit_global a) 
+>                                                    (audit_global_impressao_numero $ audit_global b))
+>                                               ((audit_global_valor_vendas $ audit_global a) + 
+>                                                (audit_global_valor_vendas $ audit_global b))
+>                                               (max (audit_global_numero_vendas $ audit_global a) 
+>                                                    (audit_global_numero_vendas $ audit_global b))
+>                                               ((audit_global_dinheiro_tubos $ audit_global a) + 
+>                                                (audit_global_dinheiro_tubos $ audit_global b))
+>                                               ((audit_global_interrupcao $ audit_global a) + 
+>                                                (audit_global_interrupcao $ audit_global b))
+>                                               (max (audit_global_data $ audit_global a) 
+>                                                    (audit_global_data $ audit_global b)) )
+>                           (AuditInstallSection (max (audit_install_impressao_numero $ audit_install a) 
+>                                                     (audit_install_impressao_numero $ audit_install b))
+>                                                ((audit_install_vendas $ audit_install a) + 
+>                                                 (audit_install_vendas $ audit_install b))
+>                                                ((audit_install_numero_vendas $ audit_install a) + 
+>                                                 (audit_install_numero_vendas $ audit_install b))) 
+>                           (AuditPartialSection (max (audit_partial_desde_impressao_numero $ audit_partial a) 
+>                                                     (audit_partial_desde_impressao_numero $ audit_partial b))
+>                                                ((audit_partial_dinheiro_cofre $ audit_partial a) + 
+>                                                 (audit_partial_dinheiro_cofre $ audit_partial b))) 
+>                           (AuditCashSection $ (map $ foldr foldrAuditItem (createMissingItem 0)) 
+>                                             $ groupBy isSameItem 
+>                                             $ sortBy isSameItemOrd 
+>                                             $ ((audit_cash_items $ audit_cash a) ++ (audit_cash_items $ audit_cash b) )) 
+>                           (AuditCardSection $ (map $ foldr foldrAuditItem (createMissingItem 0))
+>                                             $ groupBy isSameItem 
+>                                             $ sortBy isSameItemOrd 
+>                                             $ ((audit_card_items $ audit_card a) ++ (audit_card_items $ audit_card b) )) 
+
+
+
+>foldrAudit l = foldr foldrAuditFunc (create_audit 0 []) l
+
+>createGroupAudit p l = 
+>                if read $ getValue p "workflow.filtergroup" "True" 
+>                then (map foldrAudit
+>                   $ groupBy (\a b -> (get_tempo_ligacao p $ audit_global_data $ audit_global a) == 
+>                                      (get_tempo_ligacao p $ audit_global_data $ audit_global b)) l)
+>                else l ++ (map foldrAudit
+>                   $ groupBy (\a b -> (get_tempo_ligacao p $ audit_global_data $ audit_global a) == 
+>                                      (get_tempo_ligacao p $ audit_global_data $ audit_global b)) l)
+
+>workflow props input = showTable props 													-- criar CSV output
+>                      $ getTableFromRows 													-- criar Table
+>                      $ map (table_audit props) 											-- criar Rows
+>                      $ conditional props "workflow.sort" sort                  			-- ordenar as Auditorias pelo numero
+>                      $ filter ((>0) . audit_global_impressao_numero . audit_global) 		-- filtrar auditorias com o numero 0
+>                      $ conditional props "workflow.creategroup" (createGroupAudit props)	-- eliminar audits 
+>                      $ conditional props "workflow.filterduplicates" filterDuplicates		-- eliminar audits 
+>                      $ conditional props "workflow.createmissing" createMissingAudit		-- criar Audit em falta
+>                      $ map (create_audit 0)												-- criar Audit
+>                      $ filter (isAuditHeader props) 										-- filtar as secções inválidas
+>                      $ map (audits isAuditSubSection) 									-- criação de subsecções
+>                      $ audits isAuditSection 												-- criação de secções (auditorias)
+>                      $ lines 																-- cria listas com as linhas
+>                      $ filter (not . isAuditTrash) input 									-- remove os carateres com lixo
 
 
 >get_tempo_ligacao props day = let y = read $ getValue props "date.initial.year" "2014"
 >                                  m = read $ getValue props "date.initial.month" "July"
->                                  d = read $ getValue props "date.initial.day" "02"
+>                                  d = read $ getValue props "date.initial.day" "03"
 >                                  ct = toClockTime $ CalendarTime y m d 0 0 0 0 Sunday 0 "" 0 True
 >                                  res = addToClockTime (TimeDiff 0 0 day 0 0 0 0) ct 
 >                              in (\x -> (show $ ctYear x) ++ "-" ++ (show $ get_month_number $ ctMonth x) ++ "-" ++ (show $ ctDay x)) $ toUTCTime res
