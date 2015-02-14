@@ -5,7 +5,9 @@
 >import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), 
 >                    toClockTime,addToClockTime,toUTCTime,getClockTime, diffClockTimes)
 
->version = "Egna-ReadAudit " ++ "version 1.0.7.0"
+>import Text.Parsec
+
+>version = "Egna-ReadAudit " ++ "version 1.0.8.0"
 
 >type Number = Int
 >data Money = Money {money :: Float} deriving (Eq, Ord)
@@ -101,6 +103,7 @@
 >lineSeparator p = getValue p "output.table.line.separator" "\n"
 
 >audit_global_header p = getValue p "input.section.header" "     MEI - CF7000     "
+>isAuditDateSection s = (take 58 $ repeat '*') == (reverse $ take 58 s) 
 >isAuditSection s = (take 24 $ repeat '=') == (reverse $ take 24 s)
 >isAuditSubSection s = (take 24 $ repeat '-') == (reverse $ take 24 s)
 >isAuditHeader p xss = audit_global_header p == head (head xss)
@@ -109,11 +112,18 @@
 >isAuditTrash '\9632' = True
 >isAuditTrash _ = False
 
->audits   :: (String -> Bool) -> [String] -> [[String]]
+> -- audits   :: (String -> Bool) -> [String] -> [[String]]
 >audits f s =  case dropWhile f s of
 >                [] -> []
 >                s' -> w : audits f s''
 >                      where (w, s'') = break f s'
+
+>audits2 f s =  case dropWhile f s of
+>                [] -> []
+>                s' -> [z : w : []] ++ (audits2 f s'')
+>                      where (w, s'') = break f s'
+>                            z = takeWhile f s
+
 
 >create_audit_cash_item = (\(a:b:c:d:_) -> AuditItem (read a) (read b) (Money $ read c) (Money $ read d)) . words
 >create_audit_global (audit_header:_:_:_:_:a:b:c:d:e:f:_) _ =  
@@ -245,6 +255,26 @@
 >                      $ lines 																-- cria listas com as linhas
 >                      $ filter (not . isAuditTrash) input 									-- remove os carateres com lixo
 
+>workflow2 props input = --showTable props 													-- criar CSV output
+> --                      $ getTableFromRows 													-- criar Table
+> --                      $ map (table_audit props) 											-- criar Rows
+> --                      $ conditional props "workflow.sort" sort                  			-- ordenar as Auditorias pelo numero
+> --                      $ filter ((>0) . audit_global_impressao_numero . audit_global) 		-- filtrar auditorias com o numero 0
+> --                      $ conditional props "workflow.creategroup" (createGroupAudit props)	-- eliminar audits 
+> --                      $ conditional props "workflow.filterduplicates" filterDuplicates		-- eliminar audits 
+> --                      $ conditional props "workflow.createmissing" createMissingAudit		-- criar Audit em falta
+> --                       foldr (\(elem, acc) -> elem:acc) []												-- criar Audit
+> --                      $ filter (isAuditHeader props) 										-- filtar as secções inválidas
+>                        map (audits isAuditSubSection) 									-- criação de subsecções
+>                       $ audits (\x -> isAuditSection x || isAuditDateSection x) 												-- criação de secções (auditorias)
+>                       $ lines 																-- cria listas com as linhas
+>                      $ filter (not . isAuditTrash) input 									-- remove os carateres com lixo
+
+>assimilar [] = []
+>assimilar (x:[]) = x
+>assimilar (x:y:xs) | length x == 1 && length y /= 1 = (head x:y) ++ assimilar xs
+>                   | otherwise = assimilar (y:xs)
+
 
 >get_tempo_ligacao props day = let y = read $ getValue props "date.initial.year" "2014"
 >                                  m = read $ getValue props "date.initial.month" "July"
@@ -273,3 +303,19 @@
 >          afterWorkFlowTime <- getClockTime
 >          putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
 >          return ()
+
+>main2 :: IO ()
+>main2 = do putStrLn version
+>           beforeWorkFlowTime <- getClockTime
+>           propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
+>           putStrLn ("Read " ++ propertiesPath)
+>           propsRaw <- readFile propertiesPath
+>           props <- return $ getProperties propsRaw
+>           putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log")
+>           input <- readFile $ getValue props "input.filename" "DUMP.log"
+>           output <- return $ workflow props input
+>           putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv")
+>           writeFile (getValue props "output.filename" "DUMP.csv") output
+>           afterWorkFlowTime <- getClockTime
+>           putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
+>           return ()
