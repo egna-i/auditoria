@@ -10,6 +10,9 @@
 >import Egna.Audit
 >import Egna.Table
 
+Blocos de Datas(para depois ler a ultima data) e um bloco de auditoria
+No bloco de auditoria, ler as várias secções
+
 >version = "Egna-ReadAudit " ++ "version 1.0.9.0"
 
 >type Property = (String, String)
