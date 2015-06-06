@@ -15,12 +15,16 @@
 >  fromInteger = Money . fromInteger
 
 >data Audit = Audit { 
+>	audit_timing :: AuditTimingSection, 
 >	audit_global :: AuditGlobalSection, 
 >	audit_install :: AuditInstallSection, 
 >	audit_partial :: AuditPartialSection, 
 >	audit_cash :: AuditCashSection,
 >	audit_card :: AuditCardSection
 >	} deriving (Eq, Show)
+>data AuditTimingSection = AuditTimingSection {
+>       audit_timing_data :: [String]
+>      } deriving (Eq, Show)
 >data AuditGlobalSection = AuditGlobalSection { 
 >       audit_global_impressao_numero :: Number, 
 >       audit_global_valor_vendas :: Money,
@@ -53,6 +57,7 @@
 
 >data AuditDateTime = AuditDateTime {
 >       audit_year :: Int,
+>--       audit_year :: Int,
 >       audit_day :: Int,
 >       audit_minute :: Int
 >      } deriving (Eq, Show)
@@ -81,6 +86,7 @@
 
 >create_audit_global_data year day minute = AuditDateTime year day minute
 >create_audit_cash_item = (\(a:b:c:d:_) -> AuditItem (read a) (read b) (Money $ read c) (Money $ read d)) . words
+>create_audit_timing _ = AuditTimingSection []
 >create_audit_global (audit_header:_:_:_:_:a:b:c:d:e:f:_) _ =  
 >                     AuditGlobalSection (get_number a) (get_money b) (get_number c) (get_money d) (get_number e) (create_audit_global_data 2014 (get_data f) 0)
 >create_audit_global [] n = AuditGlobalSection n (Money 0) 0 (Money 0) 0 (create_audit_global_data 2000 1 0)
@@ -93,10 +99,10 @@
 >create_audit_cash [] = AuditCashSection []
 >create_audit_card (_:_:_:xs) = AuditCardSection (map create_audit_cash_item xs)
 >create_audit_card [] = AuditCardSection []
->create_audit n (a:b:c:_:[]) = Audit (create_audit_global a n) (create_audit_install b) (create_audit_partial c) (create_audit_cash []) (create_audit_card [])
->create_audit n (a:b:c:d:_:[]) = Audit (create_audit_global a n) (create_audit_install b) (create_audit_partial c) (create_audit_cash d) (create_audit_card [])
->create_audit n (a:b:c:d:e:_:[]) = Audit (create_audit_global a n) (create_audit_install b) (create_audit_partial c) (create_audit_cash e) (create_audit_card d)
->create_audit n _ = Audit (create_audit_global [] n) (create_audit_install []) (create_audit_partial []) (create_audit_cash []) (create_audit_card [])
+>create_audit n (a:b:c:_:[]) = Audit (create_audit_timing []) (create_audit_global a n) (create_audit_install b) (create_audit_partial c) (create_audit_cash []) (create_audit_card [])
+>create_audit n (a:b:c:d:_:[]) = Audit (create_audit_timing []) (create_audit_global a n) (create_audit_install b) (create_audit_partial c) (create_audit_cash d) (create_audit_card [])
+>create_audit n (a:b:c:d:e:_:[]) = Audit (create_audit_timing []) (create_audit_global a n) (create_audit_install b) (create_audit_partial c) (create_audit_cash e) (create_audit_card d)
+>create_audit n _ = Audit (create_audit_timing []) (create_audit_global [] n) (create_audit_install []) (create_audit_partial []) (create_audit_cash []) (create_audit_card [])
 
 >parse_audit p n str | audit_global_header p == (head $ lines str) = 
 >                            create_audit n
