@@ -109,9 +109,28 @@ auditTermiteDate = do
 					try eol *> many (char '*') *> try eol
 					return $ AuditTermiteDate dw m (read d) (read hh, read mm, read ss) (read y)
 
+anything = letter <|> digit <|> oneOf [' ','-','.', '\\', '/', ':']
+					
+auditMiele	= do
+			try (many (char '=') *> eol *> many (char ' ') *> string "EGNA-I" <* eol) <|> return []
+			--many (char '=') *> eol *> optional (many (char ' ') *> string "EGNA-I" *> eol *> many (char '=') *> eol) *> 
+			many (char '=') *> eol *> many (char ' ') *> string "MEI - CF7000" *> many (char ' ') <* eol
+			many (many anything <* eol) <* many (char '=') <* eol
+			manyTill anyChar (try (string "*"))
+			
+			
+--auditMieleNormalItem = letter <|> char '.'
+
+isAuditTrash '\160' = True
+isAuditTrash '\NUL' = True
+isAuditTrash '\9632' = True
+isAuditTrash _ = False
 
 		
-test = readFile "DUMP_002.log" >>= return . parse (many auditTermiteDate) "falhou"
+test = readFile "DUMP_002.log" 
+		>>= return . filter (not . isAuditTrash) 
+		>>= return . parse (many (many auditTermiteDate <* (try auditMiele <|> return []))) "falhou" 
+		>>= either print (mapM_ print)
 	   
 	   
 \end{code}
