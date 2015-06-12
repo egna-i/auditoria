@@ -111,7 +111,7 @@ auditTermiteDate = do
 
 
 		
-test = readFile "DUMP_002.log" >>= return . parse auditTermiteDate "falhou"
+test = readFile "DUMP_002.log" >>= return . parse (many auditTermiteDate) "falhou"
 	   
 	   
 \end{code}
