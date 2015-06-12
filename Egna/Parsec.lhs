@@ -66,12 +66,7 @@ end{code}
 type AuditTermiteDateTime = (Int, Int, Int)
 data AuditTermiteDate = AuditTermiteDate System.Time.Day System.Time.Month Int AuditTermiteDateTime Int deriving (Eq, Show)
 
-
-starsOfDUMP = "**********************************************************"
 eol = char '\n' <|> char '\r'
-
-p_bool = True <$ string "true"
-     <|> False <$ string "false"
 
 dayofweek =   (try $ Sunday <$ string "Sun")
           <|> (try $ Monday <$  string "Mon")
@@ -95,37 +90,29 @@ month =       (try $ January <$ string "Jan")
 		  <|> (try $ November <$ string "Nov")
 		  <|> (try $ December <$ string "Dec")
 		  <?> "Month {Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec}"
-		  
---number :: CharParser () Int
-number = do s <- getInput
-            case readSigned readFloat s of
-                [(n, s')] -> n <$ setInput s'
-                _         -> empty
-
-time = do 
-   hh <- count 2 digit
-   char ':'
-   mm <- count 2 digit
-   char ':'
-   ss <- count 2 digit
-   --return ()
-   return $ TimeDiff 0 0 0 (read hh) (read mm) (read ss) 0
-		  
-starts = spaces *> many (char '*') *> try eol 
-     *> string "Termite log, started at" *> char ' ' *> dayofweek <* char ' ' <* month
-	 <?> "spaces"  --many (char '*')
-
---parse_timing = timing <*> spaces
---	where timing = AuditTermiteDate <?> "AuditTermiteDate"
-	
---	many (char '*') >>
---	eol >>
---	string "Termite log, started at" >>
---	return ()
-	
+		     
+auditTermiteDate = do
+					spaces *> many (char '*') *> try eol *> string "Termite log, started at" *> char ' ' 
+					dw <- dayofweek
+					char ' '
+					m <- month
+					char ' '
+					d <- count 2 (char ' ' <|> digit)
+					char ' '
+					hh <- count 2 digit
+					char ':'
+					mm <- count 2 digit
+					char ':'
+					ss <- count 2 digit
+					char ' '
+					y <- count 4 digit
+					try eol *> many (char '*') *> try eol
+					return $ AuditTermiteDate dw m (read d) (read hh, read mm, read ss) (read y)
 
 
---skipMany (string starsOfDUMP <|> eol) <|> 
-
+		
+test = readFile "DUMP_002.log" >>= return . parse auditTermiteDate "falhou"
+	   
+	   
 \end{code}
 
