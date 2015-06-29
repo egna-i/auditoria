@@ -116,7 +116,7 @@ auditMiele	= do
 			--many (char '=') *> eol *> optional (many (char ' ') *> string "EGNA-I" *> eol *> many (char '=') *> eol) *> 
 			many (char '=') *> eol *> many (char ' ') *> string "MEI - CF7000" *> many (char ' ') <* eol
 			many (many anything <* eol) <* many (char '=') <* eol
-			manyTill anyChar (try (string "*"))
+			--manyTill anyChar (try (string "*"))
 			
 			
 --auditMieleNormalItem = letter <|> char '.'
@@ -126,12 +126,29 @@ isAuditTrash '\NUL' = True
 isAuditTrash '\9632' = True
 isAuditTrash _ = False
 
+audit = do d <- auditTermiteDate
+           -- m <- auditMiele `sepEndBy1` (string "APAGAR OS PARCIAIS" <|> many1 eol <|> count 2 anyChar)
+           noneOf "*"
+           return (d, [""])
+							 
 		
 test = readFile "DUMP_002.log" 
 		>>= return . filter (not . isAuditTrash) 
-		>>= return . parse (many (many auditTermiteDate <* (try auditMiele <|> return []))) "falhou" 
+		>>= return . parse (many1 audit) "falhou"
 		>>= either print (mapM_ print)
-	   
+
+test2 = readFile "DUMP_section.log" 
+		>>= return . filter (not . isAuditTrash) 
+		>>= return . parse (many1 audit) "falhou"
+		>>= either print (mapM_ print)
+
+		
+test1 = readFile "DUMP_section.log" 
+		>>= return . filter (not . isAuditTrash) 
+		>>= return . parse (auditMiele) "falhou"
+		-- >>= return . parse (many (manyTill anyChar (try (string "*" <* (eof))) *> auditTermiteDate)) "falhou"
+		-- many (auditTermiteDate <* manyTill anyChar (try (string "*")))) "falhou" -- <* (try auditMiele <|> return []))) "falhou" 
+		>>= either print (mapM_ print)
 	   
 \end{code}
 
