@@ -19,10 +19,10 @@ import Egna.Audit
 
 --import Data.Char
 import Numeric
-import Control.Applicative
-import Control.Monad (MonadPlus(..), ap)
+import Control.Applicative hiding (many, optional, (<|>))
+import Control.Monad (MonadPlus(..), ap) 
 
-import Text.Parsec hiding (many, optional, (<|>))
+import Text.Parsec -- hiding (many, optional, (<|>))
 ---- Hide a few names that are provided by Applicative.
 --import Text.ParserCombinators.Parsec --hiding (many, optional, (<|>))
 --import Text.Parsec.Pos
@@ -111,15 +111,51 @@ auditTermiteDate = do
 
 anything = letter <|> digit <|> oneOf [' ','-','.', '\\', '/', ':']
 					
+					
+auditMieleItem = 
+			( string "========================"
+			<|> string "------------------------"
+			<|> (((spaces >> string "MEI - CF7000")
+			<|> string "DADOS CONTAB. CASHFLOW"
+			<|> string "DATA-HORA\\"
+			<|> string "NO. MAQUI"
+			<|> string "IMPRESSAO NUMERO"
+			<|> string "VALOR VENDAS"
+			<|> string "NUMERO VENDAS"
+			<|> string "DINH. NOS TUBOS"
+			<|> string "NO INTERR. DE AL."
+			<|> string "TEMPO LIGACAO"
+			<|> string "DESDE INSTALACAO"
+			<|> string "DATA"
+			<|> string "IMPRESSAO NUMERO"
+			<|> string "VENDAS Moeda y C"
+			<|> string "NUMERO DE VENDAS"
+			<|> string "VALORES PARCIAIS MOEDA"
+			<|> string "DESDE IMPRESSAO NO."
+			<|> string "DINH. NO COFRE"
+			<|> string "RECAL"
+			<|> string "DINH. NOS TUBOS"
+			<|> string "TROCO DEVOLVIDO"
+			<|> string "INSERIDO MANUAL"
+			<|> string "DISP. MANUAL"
+			<|> string "VALOR DE VENDAS"
+			<|> string "SOBREPAGO"
+			<|> string "FICHAS"
+			<|> string "VALUE TOKENS"
+			<|> string "NOTAS"
+			<|> string "CARTOES"
+			<|> string "RECARGA"
+			<|> string "VALORES PARCIAIS VENDAS"
+			<|> string "SEM VALOR DE VENDA"
+			<|> string "PRECOS ALTERADOS") >> many anyChar)) <* eol
+			
+			
+			
 auditMiele	= do
-			try (many (char '=') *> eol *> many (char ' ') *> string "EGNA-I" <* eol) <|> return []
-			--many (char '=') *> eol *> optional (many (char ' ') *> string "EGNA-I" *> eol *> many (char '=') *> eol) *> 
-			many (char '=') *> eol *> many (char ' ') *> string "MEI - CF7000" *> many (char ' ') <* eol
-			many (many anything <* eol) <* many (char '=') <* eol
-			--manyTill anyChar (try (string "*"))
+			r <- many1 auditMieleItem
+			(string "APAGAR OS PARCIAIS" <|> many1 eol <|> count 2 anyChar)
+			return r
 			
-			
---auditMieleNormalItem = letter <|> char '.'
 
 isAuditTrash '\160' = True
 isAuditTrash '\NUL' = True
@@ -127,10 +163,12 @@ isAuditTrash '\9632' = True
 isAuditTrash _ = False
 
 audit = do d <- auditTermiteDate
-           -- m <- auditMiele `sepEndBy1` (string "APAGAR OS PARCIAIS" <|> many1 eol <|> count 2 anyChar)
-           noneOf "*"
-           return (d, [""])
-							 
+           ch <- lookAhead anyChar
+           case ch of
+             '*' -> return (d, [])
+             otherwise -> do m <- auditMiele 
+                             return (d, m)
+		
 		
 test = readFile "DUMP_002.log" 
 		>>= return . filter (not . isAuditTrash) 
