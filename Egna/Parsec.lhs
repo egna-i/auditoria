@@ -20,7 +20,7 @@ import Egna.Audit
 --import Data.Char
 import Numeric
 import Control.Applicative hiding (many, optional, (<|>))
-import Control.Monad (MonadPlus(..), ap) 
+--import Control.Monad (MonadPlus(..), ap) 
 
 import Text.Parsec -- hiding (many, optional, (<|>))
 ---- Hide a few names that are provided by Applicative.
@@ -92,7 +92,7 @@ month =       (try $ January <$ string "Jan")
 		  <?> "Month {Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec}"
 		     
 auditTermiteDate = do
-					spaces *> many (char '*') *> try eol *> string "Termite log, started at" *> char ' ' 
+					try spaces *> many (char '*') *> try eol *> string "Termite log, started at" *> char ' ' 
 					dw <- dayofweek
 					char ' '
 					m <- month
@@ -110,10 +110,20 @@ auditTermiteDate = do
 					return $ AuditTermiteDate dw m (read d) (read hh, read mm, read ss) (read y)
 
 anything = letter <|> digit <|> oneOf [' ','-','.', '\\', '/', ':']
+
+auditTermiteDates = manyTill auditTermiteDate eof
+--auditTermiteDates = do d <- ((try auditTermiteDate >>= return . Just) <|> (try eof >> return Nothing))
+--                       ds <- (try eof >> return []) <|> auditTermiteDates
+--                       return (d:ds)
+
+{-auditTermiteDates = do d <- auditTermiteDate
+                       ds <- (try eof >> return []) <|> auditTermiteDates
+                       return (d:ds)
+                       -}
 					
 					
 auditMieleItem = 
-			( string "========================"
+            ( string "========================"
 			<|> string "------------------------"
 			<|> (((spaces >> string "MEI - CF7000")
 			<|> string "DADOS CONTAB. CASHFLOW"
@@ -147,29 +157,56 @@ auditMieleItem =
 			<|> string "RECARGA"
 			<|> string "VALORES PARCIAIS VENDAS"
 			<|> string "SEM VALOR DE VENDA"
-			<|> string "PRECOS ALTERADOS") >> many anyChar)) <* eol
+			<|> string "PRECOS ALTERADOS") >> many anyChar))
 			
 			
 			
 auditMiele	= do
-			r <- many1 auditMieleItem
-			(string "APAGAR OS PARCIAIS" <|> many1 eol <|> count 2 anyChar)
-			return r
+            r <- many1 auditMieleItem
+            (string "APAGAR OS PARCIAIS" <|> many1 eol <|> count 2 anyChar)
+            return r
 			
 
 isAuditTrash '\160' = True
 isAuditTrash '\NUL' = True
 isAuditTrash '\9632' = True
+isAuditTrash '\9500' = True
+isAuditTrash '\9488' = True
 isAuditTrash _ = False
 
+audit =  do x <- (eof >> (return Nothing)) 
+                  <|> ((auditTermiteDate) >>= (return . Just))
+            case x of
+              Nothing -> return []
+              Just x' -> do xs' <- audit
+                            return (x':xs')
+
+{-
+audit = do d <- auditTermiteDate
+           ch <- lookAhead anyChar
+           case ch of
+             '*' -> do (ds, m) <- audit
+                       return (d:ds, m)
+             otherwise -> (eof >> return ([],[])) <|> 
+                          (auditMiele >>= \m -> return ([d], m))
+-}
+{-
 audit = do d <- auditTermiteDate
            ch <- lookAhead anyChar
            case ch of
              '*' -> return (d, [])
              otherwise -> do m <- auditMiele 
-                             return (d, m)
-		
-		
+                             return (d, m)							 
+-}
+
+
+test name = readFile ("DUMP" ++ putUnderscore name ++ name ++ ".log")
+        >>= return . filter (not . isAuditTrash) 
+        >>= return . parse auditTermiteDates "falhou"
+        >>= either print (mapM_ print)
+        where putUnderscore name | length name > 0 = "_"
+                                 | otherwise       = ""
+{-		
 test = readFile "DUMP_002.log" 
 		>>= return . filter (not . isAuditTrash) 
 		>>= return . parse (many1 audit) "falhou"
@@ -187,6 +224,7 @@ test1 = readFile "DUMP_section.log"
 		-- >>= return . parse (many (manyTill anyChar (try (string "*" <* (eof))) *> auditTermiteDate)) "falhou"
 		-- many (auditTermiteDate <* manyTill anyChar (try (string "*")))) "falhou" -- <* (try auditMiele <|> return []))) "falhou" 
 		>>= either print (mapM_ print)
-	   
+	  
+      -}
 \end{code}
 
