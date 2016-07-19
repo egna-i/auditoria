@@ -4,7 +4,8 @@
 >import System.FilePath.Windows (combine)
 >import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), 
 >                    toClockTime,addToClockTime,toUTCTime,getClockTime, diffClockTimes)
->import Data.List.Split
+
+--import Data.List.Split
 
 >version :: String
 >version = "Egna-ReadAudit " ++ "version 1.0.11.0"
@@ -29,47 +30,62 @@
 >                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
 
 >type ColumnName = String
+>
 
->keys = ["Termite log, started at ",
->        "NO. MAQUI",
->        "IMPRESSAO NUMERO",
->        "VALOR VENDAS",
->        "NUMERO VENDAS",
->        "DINH. NOS TUBOS",
->        "NO INTERR. DE AL.",
->        "TEMPO LIGACAO",
->        "DATA",
->        "IMPRESSAO NUMERO",
->        "VENDAS Moeda y C",
->        "NUMERO DE VENDAS",
->        "DESDE IMPRESSAO NO.",
->        "DINH. NO COFRE",
->        "RECAL",
->        "DINH. NOS TUBOS",
->        "TROCO DEVOLVIDO",
->        "INSERIDO MANUAL",
->        "DISP. MANUAL",
->        "VALOR DE VENDAS",
->        "NUMERO VENDAS",
->        "SOBREPAGO",
->        "FICHAS",
->        "VALUE TOKENS",
->        "NOTAS",
->        "CARTOES",
->        "RECARGA",
->        "VALORES PARCIAIS VENDAS",
->        "PARCIAL VENDAS GRATUITAS",
->        "NO VENDAS GRATUITAS",
->        "VAL. VENDAS GRATUIT",
->        "VENDAS POR CARTAO",
->        "VENDAS POR MOEDA",
->        "SEM VALOR DE VENDA"] ++
->        map show [1..100] ++
->        ["PRECOS ALTERADOS"]
+>keys = [("Termite log, started at ", 1),
+>        ("NO. MAQUI", 1),
+>        ("IMPRESSAO NUMERO", 1),
+>        ("VALOR VENDAS", 1),
+>        ("NUMERO VENDAS", 1),
+>        ("DINH. NOS TUBOS", 1),
+>        ("NO INTERR. DE AL.", 1),
+>        ("TEMPO LIGACAO", 1),
+>        ("DATA", 1),
+>        ("IMPRESSAO NUMERO", 1),
+>        ("VENDAS Moeda y C", 1),
+>        ("NUMERO DE VENDAS", 1),
+>        ("DESDE IMPRESSAO NO.", 1),
+>        ("DINH. NO COFRE", 1),
+>        ("RECAL", 1),
+>        ("DINH. NOS TUBOS", 1),
+>        ("TROCO DEVOLVIDO", 1),
+>        ("INSERIDO MANUAL", 1),
+>        ("DISP. MANUAL", 1),
+>        ("VALOR DE VENDAS", 1),
+>        ("NUMERO VENDAS", 1),
+>        ("SOBREPAGO", 1),
+>        ("FICHAS", 1),
+>        ("VALUE TOKENS", 1),
+>        ("NOTAS", 1),
+>        ("CARTOES", 1),
+>        ("RECARGA", 1),
+>        ("VALORES PARCIAIS VENDAS", 1),
+>        ("PARCIAL VENDAS GRATUITAS", 1),
+>        ("NO VENDAS GRATUITAS", 1),
+>        ("VAL. VENDAS GRATUIT", 1),
+>        ("VENDAS POR CARTAO", 1),
+>        ("VENDAS POR MOEDA", 1),
+>        ("SEM VALOR DE VENDA", 1)] ++
+>        zip (map show [1..10]) [ 1 | n <- [1..100] ] ++
+>        [("PRECOS ALTERADOS", 1)]
 
          "------------------------",
          "========================"]
 
+>--emptyStatements = (zip [0 | n <- [1..]] . (\(k,_) -> k) . unzip) keys         --
+         
+>--adiciona uma statement ao indice
+>addStatement :: [(String, Integer)] -> String -> [(String, Integer)]
+>addStatement list statement = (statement, maybe 1 (+1) $ lookup statement list) : filter (\(k,_) -> statement /= k) list
+
+
+>canAddStatement :: [(String, Integer)] -> [(String, Integer)] -> String -> Bool
+>canAddStatement k list statement = maybe 1 id (lookup statement list) <= maybe 0 id (lookup statement k)
+
+>--addStatements k st statement | length st > 0 && canAddStatement k (last st) statement = [addStatement (last st) statement]
+>--                             | otherwise                                              = st ++ [addStatement [] statement]
+
+--maybe (statement, 1) (\x -> ) v
 
 >workflow props input = show $ lines $ filter (not . isAuditTrash) input
 
