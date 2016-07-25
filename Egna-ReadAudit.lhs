@@ -1,5 +1,5 @@
 >module Main where
->import Data.List (intersperse, elemIndex,sort,groupBy,sortBy,(\\))
+>import Data.List (intersperse, elemIndex,sort,groupBy,sortBy,inits,(\\))
 >import System.Directory (doesFileExist, getHomeDirectory)
 >import System.FilePath.Windows (combine)
 >import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), 
@@ -7,20 +7,32 @@
 
 >import Text.Parsec
 
->version = "Egna-ReadAudit " ++ "version 1.0.8.0"
+>version :: String
+>version = "Egna-ReadAudit " ++ "version 1.0.11.0"
 
->type Number = Int
->data Money = Money {money :: Float} deriving (Eq, Ord)
 
->instance Show Money where 
->   show (Money m) = show m
+>type Key = String
+>type Value = String
+>type Property = (Key, Value)
+>getProperties = map (\x -> (read x) :: Property) . lines
 
->instance Num Money where
->  (Money a) + (Money b) = Money (a + b)
->  (Money a) * (Money b) = Money (a * b)
->  abs = Money . abs . money
->  signum = Money . signum . money
->  fromInteger = Money . fromInteger
+>getValue :: [Property] -> Key -> Value -> Value
+>getValue p k v = maybe v id (lookup k p)
+>conditional p k f l = if read $ getValue p k "True" then f l else l
+
+>cellSeparator p = getValue p "output.table.cell.separator" "; "
+>lineSeparator p = getValue p "output.table.line.separator" "\n"
+>audit_global_header p = getValue p "input.section.header" "     MEI - CF7000     "
+
+>getPropertiesPath :: FilePath -> IO FilePath
+>getPropertiesPath filename = do userDirectory <- getHomeDirectory
+>                                existFilenameOnUser <- doesFileExist $ combine userDirectory filename
+>                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
+
+>isAuditDateSection = (==58) . length . filter (=='*')
+>isAuditSection = (==24) . length . filter (=='=') 
+>isAuditSubSection = (==24) . length . filter (=='-') 
+>isAuditHeader p xss = audit_global_header p == head (head xss)
 
 >data Audit = Audit { 
 >	audit_global :: AuditGlobalSection, 
@@ -29,6 +41,9 @@
 >	audit_cash :: AuditCashSection,
 >	audit_card :: AuditCardSection
 >	} deriving (Eq, Show)
+>instance Ord Audit where
+>  compare a1 a2 = compare (audit_global_impressao_numero $ audit_global a1) (audit_global_impressao_numero $ audit_global a2)
+
 >data AuditGlobalSection = AuditGlobalSection { 
 >       audit_global_impressao_numero :: Number, 
 >       audit_global_valor_vendas :: Money,
@@ -59,19 +74,21 @@
 >       audit_item_value_price :: Money
 >      } deriving (Eq, Show)
 
->data Row = Row {
->       row_columns :: [String],
->       row_line :: [String]
->      } deriving (Eq, Show)
->data Table = Table {
->       table_header :: [String],
->       table_lines :: [[String]]
->      } deriving (Eq, Show)
+>type Number = Int
+>data Money = Money {money :: Float} deriving (Eq, Ord)
+>instance Show Money where 
+>   show (Money m) = show m
+>instance Num Money where
+>  (Money a) + (Money b) = Money (a + b)
+>  (Money a) * (Money b) = Money (a * b)
+>  abs = Money . abs . money
+>  signum = Money . signum . money
+>  fromInteger = Money . fromInteger
 
->type Property = (String, String)
-
->instance Ord Audit where
->  compare a1 a2 = compare (audit_global_impressao_numero $ audit_global a1) (audit_global_impressao_numero $ audit_global a2)
+>isAuditTrash '\160' = True
+>isAuditTrash '\NUL' = True
+>isAuditTrash '\9632' = True
+>isAuditTrash _ = False
 
 >get_month_number January   = 01
 >get_month_number February  = 02
@@ -90,41 +107,77 @@
 >get_money = Money . read . last . words
 >get_string = last . words
 >get_data =  read . (\(fst, _) -> fst) . (\w -> splitAt (maybe 0 id (elemIndex '-' w)) w) . last . words
+>get_tempo_ligacao props day = let y = read $ getValue props "date.initial.year" "2014"
+>                                  m = read $ getValue props "date.initial.month" "July"
+>                                  d = read $ getValue props "date.initial.day" "03"
+>                                  ct = toClockTime $ CalendarTime y m d 0 0 0 0 Sunday 0 "" 0 True
+>                                  res = addToClockTime (TimeDiff 0 0 day 0 0 0 0) ct 
+>                              in (\x -> (show $ ctYear x) ++ "-" ++ (show $ get_month_number $ ctMonth x) ++ "-" ++ (show $ ctDay x)) $ toUTCTime res
+
+>type ColumnName = String
+>
+
+>data Row = Row {
+>       row_columns :: [String],
+>       row_line :: [String]
+>      } deriving (Eq, Show)
+>data Table = Table {
+>       table_header :: [String],
+>       table_lines :: [[String]]
+>      } deriving (Eq, Show)
 
 >showTable p (Table h rs) = (concat $ intersperse (cellSeparator p) $ map show h) ++ (lineSeparator p)
 >                        ++ (concat $ intersperse (lineSeparator p) $ map (\r -> concat $ intersperse (cellSeparator p) r) rs)
 
->getProperties = map (\x -> (read x) :: Property) . lines
->getValue p k v = maybe v id (lookup k p)
 
->conditional p k f l = if read $ getValue p k "True" then f l else l
-
->cellSeparator p = getValue p "output.table.cell.separator" "; "
->lineSeparator p = getValue p "output.table.line.separator" "\n"
-
->audit_global_header p = getValue p "input.section.header" "     MEI - CF7000     "
->isAuditDateSection s = (take 58 $ repeat '*') == (reverse $ take 58 s) 
->isAuditSection s = (take 24 $ repeat '=') == (reverse $ take 24 s)
->isAuditSubSection s = (take 24 $ repeat '-') == (reverse $ take 24 s)
->isAuditHeader p xss = audit_global_header p == head (head xss)
->isAuditTrash '\160' = True
->isAuditTrash '\NUL' = True
->isAuditTrash '\9632' = True
->isAuditTrash _ = False
-
-> -- audits   :: (String -> Bool) -> [String] -> [[String]]
->audits f s =  case dropWhile f s of
->                [] -> []
->                s' -> w : audits f s''
->                      where (w, s'') = break f s'
-
->audits2 f s =  case dropWhile f s of
->                [] -> []
->                s' -> [z : w : []] ++ (audits2 f s'')
->                      where (w, s'') = break f s'
->                            z = takeWhile f s
+group by N => [ date * [[[a]]]]
+ 1 - **************
+ 2 - =================
+ 3 - ---------------
+ 4 - values
 
 
+>keys = [("Termite log, started at ", 1),
+>        ("NO. MAQUI", 1),
+>        ("IMPRESSAO NUMERO", 1),
+>        ("VALOR VENDAS", 1),
+>        ("NUMERO VENDAS", 1),
+>        ("DINH. NOS TUBOS", 1),
+>        ("NO INTERR. DE AL.", 1),
+>        ("TEMPO LIGACAO", 1),
+>        ("DATA", 1),
+>        ("IMPRESSAO NUMERO", 1),
+>        ("VENDAS Moeda y C", 1),
+>        ("NUMERO DE VENDAS", 1),
+>        ("DESDE IMPRESSAO NO.", 1),
+>        ("DINH. NO COFRE", 1),
+>        ("RECAL", 1),
+>        ("DINH. NOS TUBOS", 1),
+>        ("TROCO DEVOLVIDO", 1),
+>        ("INSERIDO MANUAL", 1),
+>        ("DISP. MANUAL", 1),
+>        ("VALOR DE VENDAS", 1),
+>        ("NUMERO VENDAS", 1),
+>        ("SOBREPAGO", 1),
+>        ("FICHAS", 1),
+>        ("VALUE TOKENS", 1),
+>        ("NOTAS", 1),
+>        ("CARTOES", 1),
+>        ("RECARGA", 1),
+>        ("VALORES PARCIAIS VENDAS", 1),
+>        ("PARCIAL VENDAS GRATUITAS", 1),
+>        ("NO VENDAS GRATUITAS", 1),
+>        ("VAL. VENDAS GRATUIT", 1),
+>        ("VENDAS POR CARTAO", 1),
+>        ("VENDAS POR MOEDA", 1),
+>        ("SEM VALOR DE VENDA", 1)] ++
+>        zip (map show [1..10]) [ 1 | n <- [1..100] ] ++
+>        [("PRECOS ALTERADOS", 1)]
+
+         "------------------------",
+         "========================"]
+         
+         
 >create_audit_cash_item = (\(a:b:c:d:_) -> AuditItem (read a) (read b) (Money $ read c) (Money $ read d)) . words
 >create_audit_global (audit_header:_:_:_:_:a:b:c:d:e:f:_) _ =  
 >                     AuditGlobalSection (get_number a) (get_money b) (get_number c) (get_money d) (get_number e) (get_data f)
@@ -151,7 +204,7 @@
 >                         ys = audit_card_items $ audit_card a
 >                     in [(x, y) | x <- xs, y <- ys, audit_item_machine x == audit_item_machine y]
 
->table_audit p a = Row (table_audit_headers (read (getValue p "input.machines" "6") :: Number))
+>table_audit p a = Row (table_audit_headers (read (getValue p "input.machines" "10") :: Number))
 >                      ([ show $ audit_global_impressao_numero $ audit_global a
 >                      , show $ audit_global_valor_vendas $ audit_global a
 >                      , show $ audit_global_numero_vendas $ audit_global a
@@ -166,7 +219,7 @@
 >                                         show $ audit_item_price y, 
 >                                         show $ audit_item_value_price y
 >                                       ]) $ 
->                       filter (\(x, _) -> audit_item_machine x <= (read (getValue p "input.machines" "6") :: Number)) $ 
+>                       filter (\(x, _) -> audit_item_machine x <= (read (getValue p "input.machines" "10") :: Number)) $ 
 >                       filter (\(x, y) -> audit_item_machine x > 0 && audit_item_machine y > 0) $ 
 >                       table_audit_item a))
 >
@@ -228,6 +281,13 @@
 >                                             $ ((audit_card_items $ audit_card a) ++ (audit_card_items $ audit_card b) )) 
 
 
+> -- groups   :: (String -> Bool) -> [String] -> [[String]]
+>groups f s =  case dropWhile f s of
+>                [] -> []
+>                s' -> w : groups f s''
+>                      where (w, s'') = break f s'
+
+>groupsBy f = map (length . filter (==True) . map f) . inits 
 
 >foldrAudit l = foldr foldrAuditFunc (create_audit 0 []) l
 
@@ -249,44 +309,62 @@
 >                      $ conditional props "workflow.filterduplicates" filterDuplicates		-- eliminar audits 
 >                      $ conditional props "workflow.createmissing" createMissingAudit		-- criar Audit em falta
 >                      $ map (create_audit 0)												-- criar Audit
->                      $ filter (isAuditHeader props) 										-- filtar as secções inválidas
->                      $ map (audits isAuditSubSection) 									-- criação de subsecções
->                      $ audits isAuditSection 												-- criação de secções (auditorias)
+>                      $ filter (isAuditHeader props) 										-- filtar as secÃ§Ãµes invÃ¡lidas
+>                      $ map (groups isAuditSubSection) 									-- criaÃ§Ã£o de subsecÃ§Ãµes
+>                      $ groups isAuditSection 												-- criaÃ§Ã£o de secÃ§Ãµes (auditorias)
 >                      $ lines 																-- cria listas com as linhas
 >                      $ filter (not . isAuditTrash) input 									-- remove os carateres com lixo
 
->workflow2 props input = --showTable props 													-- criar CSV output
-> --                      $ getTableFromRows 													-- criar Table
-> --                      $ map (table_audit props) 											-- criar Rows
-> --                      $ conditional props "workflow.sort" sort                  			-- ordenar as Auditorias pelo numero
-> --                      $ filter ((>0) . audit_global_impressao_numero . audit_global) 		-- filtrar auditorias com o numero 0
-> --                      $ conditional props "workflow.creategroup" (createGroupAudit props)	-- eliminar audits 
-> --                      $ conditional props "workflow.filterduplicates" filterDuplicates		-- eliminar audits 
-> --                      $ conditional props "workflow.createmissing" createMissingAudit		-- criar Audit em falta
-> --                       foldr (\(elem, acc) -> elem:acc) []												-- criar Audit
-> --                      $ filter (isAuditHeader props) 										-- filtar as secções inválidas
->                        map (audits isAuditSubSection) 									-- criação de subsecções
->                       $ audits (\x -> isAuditSection x || isAuditDateSection x) 												-- criação de secções (auditorias)
->                       $ lines 																-- cria listas com as linhas
+>workflow1 props input = map id --filter (isAuditHeader props) 										-- filtar as secÃ§Ãµes invÃ¡lidas
+>                      $ map (groups isAuditSection) --isAuditSubSection) 									-- criaÃ§Ã£o de subsecÃ§Ãµes
+>                      $ groups isAuditDateSection 												-- criaÃ§Ã£o de secÃ§Ãµes (auditorias)
+>                      $ lines 																-- cria listas com as linhas
 >                      $ filter (not . isAuditTrash) input 									-- remove os carateres com lixo
+         
 
->assimilar [] = []
->assimilar (x:[]) = x
->assimilar (x:y:xs) | length x == 1 && length y /= 1 = (head x:y) ++ assimilar xs
->                   | otherwise = assimilar (y:xs)
+>--emptyStatements = (zip [0 | n <- [1..]] . (\(k,_) -> k) . unzip) keys         --
+         
+>--adiciona uma statement ao indice
+>addStatement :: [(String, Integer)] -> String -> [(String, Integer)]
+>addStatement list statement = (statement, maybe 1 (+1) $ lookup statement list) : filter (\(k,_) -> statement /= k) list
 
 
->get_tempo_ligacao props day = let y = read $ getValue props "date.initial.year" "2014"
->                                  m = read $ getValue props "date.initial.month" "July"
->                                  d = read $ getValue props "date.initial.day" "03"
->                                  ct = toClockTime $ CalendarTime y m d 0 0 0 0 Sunday 0 "" 0 True
->                                  res = addToClockTime (TimeDiff 0 0 day 0 0 0 0) ct 
->                              in (\x -> (show $ ctYear x) ++ "-" ++ (show $ get_month_number $ ctMonth x) ++ "-" ++ (show $ ctDay x)) $ toUTCTime res
+>canAddStatement :: [(String, Integer)] -> [(String, Integer)] -> String -> Bool
+>canAddStatement k list statement = maybe 1 id (lookup statement list) <= maybe 0 id (lookup statement k)
 
->getPropertiesPath :: FilePath -> IO FilePath
->getPropertiesPath filename = do userDirectory <- getHomeDirectory
->                                existFilenameOnUser <- doesFileExist $ combine userDirectory filename
->                                return (if existFilenameOnUser then (combine userDirectory filename) else filename)
+>--addStatements k st statement | length st > 0 && canAddStatement k (last st) statement = [addStatement (last st) statement]
+>--                             | otherwise                                              = st ++ [addStatement [] statement]
+
+--maybe (statement, 1) (\x -> ) v
+
+>workflow' props input = show $ lines $ filter (not . isAuditTrash) input
+
+split :: [String] -> ([String], [[String]]) -> [[String]]
+split [] (a,b) = (a:b)
+split (x:xs) (a,b) = split xs ()
+
+split :: [String] -> 
+
+--myPrefixOf              :: (Eq a) => [a] -> [a] -> Bool
+myPrefixOf [] list         =  []
+myPrefixOf _  []        =  []
+myPrefixOf (x:xs) yy | any (isPrefixOf x) yy =  (head $ filter (isPrefixOf x) yy) : (myPrefixOf xs yy)
+                     | otherwise = myPrefixOf xs yy
+
+>main1 :: IO ()
+>main1 = do putStrLn version
+>           beforeWorkFlowTime <- getClockTime
+>           propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
+>           putStrLn ("Read " ++ propertiesPath)
+>           propsRaw <- readFile propertiesPath
+>           props <- return $ getProperties propsRaw
+>           putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log")
+>           input <- readFile $ getValue props "input.filename" "DUMP.log"
+>           output <- return $ workflow1 props input
+>           writeFile "raw.txt" (unlines $ map show output)
+>           afterWorkFlowTime <- getClockTime
+>           putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
+>           return ()
 
 >main :: IO ()
 >main = do putStrLn version
@@ -304,18 +382,28 @@
 >          putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
 >          return ()
 
->main2 :: IO ()
->main2 = do putStrLn version
->           beforeWorkFlowTime <- getClockTime
->           propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
->           putStrLn ("Read " ++ propertiesPath)
->           propsRaw <- readFile propertiesPath
+>main' :: IO ()
+>main' = do beforeWorkFlowTime <- putStrLn version >> getClockTime
+>           propsRaw <- getPropertiesPath "Egna-ReadAudit.prop" >>= \propertiesPath -> (putStrLn ("Read " ++ propertiesPath) >> readFile propertiesPath)
 >           props <- return $ getProperties propsRaw
->           putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log")
->           input <- readFile $ getValue props "input.filename" "DUMP.log"
+>           input <- putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log") >> (readFile $ getValue props "input.filename" "DUMP.log")
 >           output <- return $ workflow props input
->           putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv")
->           writeFile (getValue props "output.filename" "DUMP.csv") output
+>           putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv") >> writeFile (getValue props "output.filename" "DUMP.csv") output
 >           afterWorkFlowTime <- getClockTime
->           putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
->           return ()
+>           putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs") >> return ()
+
+
+          beforeWorkFlowTime <- getClockTime
+          propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
+          putStrLn ("Read " ++ propertiesPath)
+          propsRaw <- readFile propertiesPath
+          props <- return $ getProperties propsRaw
+          putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log")
+          input <- readFile $ getValue props "input.filename" "DUMP.log"
+          output <- return $ workflow props input
+          putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv")
+          writeFile (getValue props "output.filename" "DUMP.csv") output
+          afterWorkFlowTime <- getClockTime
+          putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
+          return ()
+
