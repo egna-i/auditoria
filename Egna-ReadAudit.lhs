@@ -114,22 +114,54 @@ group by N => [ date * [[[a]]]]
 >table_audit_headers n = ["IMPRESSAO NUMERO", "VENDAS TOTAL", "NUMERO DE VENDAS", "NO INTERR. DE AL.", "TEMPO LIGACAO", "IMPRESSAO ANTERIOR"]
 >                        ++ ( [table_audit_header_cash m p o | m <- map show [1..n], o <- ["CASH","CARTAO"], p <- ["QUANTIDADE","PRECO","VALOR"]])
 
->isSeparatorStars = (==58) . length . filter (=='*')
->isSeparatorEquals = (==24) . length . filter (=='=') 
->isSeparatorMinus = (==24) . length . filter (=='-') 
+
+>isTrash :: Char -> Bool
+>isTrash '\160' = True
+>isTrash '\NUL' = True
+>isTrash '\9632' = True
+>isTrash _ = False
 
 
 >data Money = Euro Integer deriving (Eq, Show)
 >data SeparatorType = Stars | Equals | Minus deriving (Eq, Show)
 
->data EgnaAuditSt = St { st_items :: [EgnaAuditItem]} deriving (Eq, Show)
+>data EgnaAuditSt1 = St1 { st_items :: [EgnaAuditItem1]} deriving (Eq, Show)
+>data EgnaAuditItem1 = Topic1 String | NameValue1 String String | Item1 Integer Integer Money Money | Separator1 SeparatorType deriving (Eq, Show)
 
->data EgnaAuditItem = Topic String | NameValue String String | Item Integer Integer Money Money | Separator SeparatorType deriving (Eq, Show)
+>data EgnaAudit = Audit [String] [EgnaAuditSection] deriving (Eq, Show)
+>data EgnaAuditSection = Section String [EgnaAuditSectionItem] deriving(Eq, Show)
+>data EgnaAuditSectionItem = NameValue String String | Item Integer Integer Money Money deriving (Eq, Show)
+
+>isSeparatorStars = (==58) . length . filter (=='*')
+>isSeparatorEquals = (==24) . length . filter (=='=') 
+>isSeparatorMinus = (==24) . length . filter (=='-') 
+
+>isSeparatorStarsN :: [String] -> Int -> Bool
+>isSeparatorStarsN list n = let newlist = drop n list
+>                           in if length newlist > 0 then isSeparatorStars $ head newlist else False
 
 
->readAudit :: [String] -> EgnaAuditSt -> EgnaAuditSt
->readAudit [] state = state
->readAudit (x:xs) state | isSeparatorStars x && (length xs > 0) && (isSeparatorStars $ head xs) = St ([Separator Stars, Topic (drop 58 $ reverse x), Separator Stars] ++ (st_items $ readAudit xs state))
+>isValue :: String -> Bool
+>isValue str = all (\ch -> ch `elem` "1234567890.-/:" ) str
+>isNumber :: String -> Bool
+>isNumber str = all (\ch -> ch `elem` "1234567890.-" ) str
+
+
+>getEgnaAuditSectionItem :: String -> Maybe EgnaAuditSectionItem
+>getEgnaAuditSectionItem str | (length $ words str) == 4 && all isNumber (words str) = 
+>                              let (a:b:c:d:_) = words str
+>                                  toMoney = round . (100*) . id
+>                              in Just $ Item (read a) (read b) (Euro $ toMoney $ read c) (Euro $ toMoney $ read d) 
+>                            | (length $ words str) > 0 && (isValue $ last $ words str) = 
+>                              let v = last $ words str
+>                              in Just $ NameValue (unwords $ take ((\x -> x - 1) $ length $ words str) (words str)) v
+>                            | otherwise = Nothing
+
+
+
+readAudit :: [String] -> EgnaAuditSt -> EgnaAuditSt
+readAudit [] state = state
+readAudit (x:xs) state | isSeparatorStars x && (length xs > 0) && (isSeparatorStars $ head xs) = St ([Separator Stars, Topic (drop 58 $ reverse x), Separator Stars] ++ (st_items $ readAudit xs state))
 
                         | isSeparatorStars x && (length xs > 1) && (not $ isSeparatorStars $ head xs) && 
                                                 ()
@@ -138,6 +170,6 @@ isSeparatorStars x && length x > 58 = St ([Topic (drop 58 $ reverse x), Separato
                        | isSeparatorStars x && length x == 58 = St (Separator Stars : (st_items $ readAudit xs state))
                        | 
 
->                       | otherwise = readAudit xs state
+                       | otherwise = readAudit xs state
 
 
