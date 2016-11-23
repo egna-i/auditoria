@@ -68,6 +68,8 @@ group by N => [ date * [[[a]]]]
 
 
 =================================================================================================================================
+
+A leitura de parametros não sei se faço top-down ou bottom-up (estou mais inclinado para esta ultima opção)
  
  
 >keys = [("Termite log, started at ", 1),
