@@ -58,7 +58,7 @@
 >data AuditDateTime = AuditDateTime {
 >       audit_year :: Int,
 >--       audit_year :: Int,
->       audit_day :: Int,
+>       audit_day :: Integer,
 >       audit_minute :: Int
 >      } deriving (Eq, Show)
 

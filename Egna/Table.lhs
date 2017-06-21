@@ -1,8 +1,8 @@
 >module Egna.Table where
->import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), 
->                    toClockTime,addToClockTime,toUTCTime,getClockTime, diffClockTimes)
 
 >import Egna.Audit
+>import Data.Time.Calendar
+
 
 >data Row = Row {
 >       row_columns :: [String],
@@ -13,21 +13,6 @@
 >       table_header :: [String],
 >       table_lines :: [[String]]
 >      } deriving (Eq, Show)
-
-
->get_month_number January   = 01
->get_month_number February  = 02
->get_month_number March     = 03
->get_month_number April     = 04
->get_month_number May       = 05
->get_month_number June      = 06
->get_month_number July      = 07
->get_month_number August    = 08
->get_month_number September = 09
->get_month_number October   = 10
->get_month_number November  = 11
->get_month_number December  = 12
-
 
 >table_audit_header_cash a b c = a ++ "-" ++ b ++ " " ++ c
 >table_audit_headers n = ["IMPRESSAO NUMERO", "VENDAS TOTAL", "NUMERO DE VENDAS", "NO INTERR. DE AL.", "TEMPO LIGACAO", "IMPRESSAO ANTERIOR"]
@@ -61,9 +46,8 @@
 >getTableFromRows r = Table (row_columns $ head r) (map row_line r)
 
 >get_tempo_ligacao props day = let y = read $ getValue props "date.initial.year" "2014"
->                                  m = read $ getValue props "date.initial.month" "July"
+>                                  m = read $ getValue props "date.initial.month" "07"
 >                                  d = read $ getValue props "date.initial.day" "03"
->                                  ct = toClockTime $ CalendarTime y m d 0 0 0 0 Sunday 0 "" 0 True
->                                  res = addToClockTime (TimeDiff 0 0 day 0 0 0 0) ct 
->                              in (\x -> (show $ ctYear x) ++ "-" ++ (show $ get_month_number $ ctMonth x) ++ "-" ++ (show $ ctDay x)) $ toUTCTime res
-
+>                                  ct = fromGregorian y m d
+>                                  res = addDays day ct 
+>                              in showGregorian res

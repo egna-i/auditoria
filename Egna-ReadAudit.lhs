@@ -2,10 +2,7 @@
 >import Data.List (intersperse, elemIndex,sort,groupBy,sortBy,(\\))
 >import System.Directory (doesFileExist, getHomeDirectory)
 >import System.FilePath.Windows (combine)
->import System.Time (Day(..),TimeDiff(..),CalendarTime(..),Month(..), 
->                    toClockTime,addToClockTime,toUTCTime,getClockTime, diffClockTimes)
-
->import Text.Parsec
+>import Data.Time.Clock
 
 >import Egna.Audit
 >import Egna.Table
@@ -71,7 +68,7 @@ assimilar (x:y:xs) | length x == 1 && length y /= 1 = (head x:y) ++ assimilar xs
 
 >main :: IO ()
 >main = do putStrLn version
->          beforeWorkFlowTime <- getClockTime
+>          beforeWorkFlowTime <- getCurrentTime 
 >          propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
 >          putStrLn ("Read " ++ propertiesPath)
 >          propsRaw <- readFile propertiesPath
@@ -81,7 +78,7 @@ assimilar (x:y:xs) | length x == 1 && length y /= 1 = (head x:y) ++ assimilar xs
 >          output <- return $ workflow props input
 >          putStrLn ("Write " ++ getValue props "output.filename" "DUMP.csv")
 >          writeFile (getValue props "output.filename" "DUMP.csv") output
->          afterWorkFlowTime <- getClockTime
->          putStrLn ("Workflow " ++ (show $ tdSec $ diffClockTimes afterWorkFlowTime beforeWorkFlowTime) ++ " secs")
+>          afterWorkFlowTime <- getCurrentTime
+>          putStrLn ("Workflow " ++ (show (utctDayTime afterWorkFlowTime - utctDayTime beforeWorkFlowTime) ++ " secs"))
 >          return ()
 
