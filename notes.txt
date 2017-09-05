@@ -1,0 +1,11 @@
+clean chars invalid
+split by lines 
+classify : [line] => [(number * line)] 
+ -> * => 3
+ -> = => 2
+ -> - => 1
+ ->   => 0
+group by 3 .. 2 .. 1 .. 0 [[[line]]] :: [audit_session] :: [[audit_record]] :: [[[audit_section]]]
+
+line -> Either (Key * Value) (Index * Quantity * Price * TotalPrice)
+
