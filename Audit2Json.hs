@@ -23,18 +23,23 @@ isAuditTrash _ = False
 
 workflow props input = show
                       $ map length
-                      $ lines 																-- cria listas com as linhas
-                      $ filter (not . isAuditTrash) input 									-- remove os carateres com lixo
+                      $ filter (\line -> length line > 0)
+                      $ lines                                           -- cria listas com as linhas
+                      $ filter (not . isAuditTrash) input               -- remove os carateres com lixo                      
+
+debugProps = []           
 
 main :: IO ()
 main = do putStrLn version
           propertiesPath <- getPropertiesPath "Egna-ReadAudit.prop"
           putStrLn ("Read " ++ propertiesPath)
           propsRaw <- readFile propertiesPath
-          props <- return $ getProperties propsRaw
+          props <- return $ debugProps ++ getProperties propsRaw
+          mapM print props
           putStrLn ("Read " ++ getValue props "input.filename" "DUMP.log")
           input <- readFile $ getValue props "input.filename" "DUMP.log"
           output <- return $ workflow props input
-          putStrLn output
+          print output
           return ()
 
+!
