@@ -21,13 +21,19 @@ isAuditTrash '\NUL' = True
 isAuditTrash '\9632' = True
 isAuditTrash _ = False
 
-workflow props input = show
-                      $ map length
+workflow props input = map id
                       $ filter (\line -> length line > 0)
+                      $ lines
+                      $ unlines
+                      $ map addnewLine
                       $ lines                                           -- cria listas com as linhas
                       $ filter (not . isAuditTrash) input               -- remove os carateres com lixo                      
 
-debugProps = []           
+debugProps = []
+
+addnewLine str | str == [] = str
+               | ((\x -> length x > 5 && head x == '*') . last . group ) str = unlines  [(concat . init . group) str, ((last . group) str)]
+               | otherwise = str
 
 main :: IO ()
 main = do putStrLn version
@@ -42,4 +48,3 @@ main = do putStrLn version
           print output
           return ()
 
-!
