@@ -9,3 +9,8 @@ group by 3 .. 2 .. 1 .. 0 [[[line]]] :: [audit_session] :: [[audit_record]] :: [
 
 line -> Either (Key * Value) (Index * Quantity * Price * TotalPrice)
 
+read by line
+map clean chars invalid
+map classify 
+group by session and record and section
+export to json and SQL
